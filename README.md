@@ -5,7 +5,9 @@ Simple Node.js script that crawls a government page and extracts PDF form links.
 Run:
 
 cd form-checker
+
 npm install
+
 node crawler.js
 
 Example Output:
