@@ -1,47 +1,38 @@
-const axios = require("axios");
+const puppeteer = require("puppeteer-extra");
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+puppeteer.use(StealthPlugin());
 const cheerio = require("cheerio");
 
 const downloadFile = require("../services/downloader");
-const URL = "https://afab.gov.ph/";
+
+const URL = "https://www.sss.gov.ph/download-forms-and-electronic-applications/";
 
 async function checkForms() {
   try {
-    const response = await axios.get(URL, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-      }
-    });
-    const html = response.data;
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(URL, { waitUntil: "networkidle2" });
+    const html = await page.content();
+    await browser.close();
 
     const $ = cheerio.load(html);
-
     const forms = [];
 
-    $("a").each((i, el) => {
+    $("a[href$='.pdf']").each((i, el) => {
       const link = $(el).attr("href");
-
-      if (link && link.endsWith(".pdf")) {
-        const fullUrl = link.startsWith("http") ? link : `https://afab.gov.ph${link}`;
-        forms.push(fullUrl);
-      }
-
+      const name = $(el).text().trim() || link.split("/").pop();
+      if (link) forms.push({ name, url: link });
     });
 
-  for (let link of forms) {
-
-    console.log("Downloading:", link);
-
-    await downloadFile(link);
-
-  }
-
-    console.log("Found forms:\n");
-
+    console.log(`Found ${forms.length} forms:\n`);
     forms.forEach((form, index) => {
-      console.log(`${index + 1}. ${form}`);
+      console.log(`${index + 1}. ${form.name}`);
     });
+
+    for (let form of forms) {
+      console.log("Downloading:", form.name);
+      await downloadFile(form.url);
+    }
 
   } catch (error) {
     console.error("Error:", error.message);

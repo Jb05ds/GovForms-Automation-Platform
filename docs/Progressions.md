@@ -10,7 +10,31 @@ What I Did
 - Installed Puppeteer
 
 Result
-Error ahawhahwa
+Error ahawhahwa - Encountered bot detection errors(error 403) when downloading directly via axios server blocked automated requests
 
 Next Step
 Use puppeteer to be able to launch as a real browser to connect to the server
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+
+(3-17-2026 - 3-18-2026) – Web Crawling and Form Discovery
+
+Goal
+Crawl a government agency website using puppeeteer and find + download their PDF forms automatically.
+
+What I Did
+- Switched from axios to puppeteer-extra with stealth plugin to bypass bot detection
+- Identified SSS (sss.gov.ph) as the first working target agency — no Cloudflare,
+  direct PDF links hosted at sss.gov.ph/wp-content/uploads/
+- Successfully crawled and downloaded all 65 SSS forms
+
+Result
+Crawler fully working for SSS — finds 65 forms, downloads all PDFs to /downloads folder.
+Confirmed that not all agencies are crawlable (e.g. AFAB uses Cloudflare + external sites).
+
+Next Step
+Generate a hash/fingerprint for each downloaded PDF and store it in a database,
+so the next crawl can detect which forms have changed.
