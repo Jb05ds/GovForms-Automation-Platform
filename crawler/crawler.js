@@ -2,6 +2,8 @@ const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 puppeteer.use(StealthPlugin());
 const cheerio = require("cheerio");
+const generateHash = require("../services/hasher");
+const path = require("path");
 
 const downloadFile = require("../services/downloader");
 
@@ -32,6 +34,12 @@ async function checkForms() {
     for (let form of forms) {
       console.log("Downloading:", form.name);
       await downloadFile(form.url);
+
+      const fileName = form.url.split("/").pop();
+      const filePath = path.join(__dirname, "../downloads", fileName);
+
+      const hash = generateHash(filePath);
+      console.log(`Hash for ${form.name}: ${hash}`)
     }
 
   } catch (error) {
