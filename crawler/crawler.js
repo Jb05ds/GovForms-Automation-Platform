@@ -5,6 +5,7 @@ const cheerio = require("cheerio");
 const generateHash = require("../services/hasher");
 const path = require("path");
 const saveHash = require("../services/database");
+const cron = require("node-cron");
 
 const downloadFile = require("../services/downloader");
 
@@ -51,3 +52,8 @@ async function checkForms() {
 }
 
 checkForms();
+
+cron.schedule("*/1 * * * *", () => {
+  console.log("Scheduled Crawler Successful");
+  checkForms();
+})
