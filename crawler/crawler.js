@@ -4,6 +4,7 @@ puppeteer.use(StealthPlugin());
 const cheerio = require("cheerio");
 const generateHash = require("../services/hasher");
 const path = require("path");
+const saveHash = require("../services/database");
 
 const downloadFile = require("../services/downloader");
 
@@ -40,6 +41,8 @@ async function checkForms() {
 
       const hash = generateHash(filePath);
       console.log(`Hash for ${form.name}: ${hash}`)
+
+      await saveHash("SSS", form.name, fileName, hash, form.url);
     }
 
   } catch (error) {

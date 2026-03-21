@@ -32,9 +32,28 @@
     - Successfully crawled and downloaded all 65 SSS forms
 
     Result
-    Crawler fully working for SSS — finds 65 forms, downloads all PDFs to /downloads folder.
+    Crawler fully working for SSS finds 65 forms, downloads all PDFs to /downloads folder.
     Confirmed that not all agencies are crawlable (e.g. AFAB uses Cloudflare + external sites).
 
     Next Step
     Generate a hash/fingerprint for each downloaded PDF and store it in a database,
     so the next crawl can detect which forms have changed.
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (3-19-2026) – PDF Hashing
+
+    Goal
+    Generate a hasher for each downloaded PDF so changes can be detected on future crawls.
+
+    What I Did
+    - Created hasher.js service that reads a PDF file and returns its hash
+    - Started setting up database connection for storing hashes
+
+    Result
+    Hashing working successfully each PDF now gets a unique SHA-256 hash.
+
+    Next Step
+    Connect to database and store the hash, file name, and download date
+    so the next crawl can compare and detect updated forms.
