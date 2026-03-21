@@ -57,3 +57,43 @@
     Next Step
     Connect to database and store the hash, file name, and download date
     so the next crawl can compare and detect updated forms.
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (3-19-2026 - 3-21-2026) – Database Storage
+
+    Goal
+    Store downloaded form metadata and hashes in a database
+    so the system can track and detect changes over time.
+
+    What I Did
+    - Set up Supabase as the database
+    - Connected the crawler to Supabase
+    - Stored form name, URL, and hash automatically after each download
+
+    Result
+    Forms are now being saved to Supabase after every crawl 
+    name, URL, and SHA-256 hash all stored successfully.
+
+    Next Step
+    Make a scheduled crawler
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (3-21-2026) – Scheduled Crawling
+
+    Goal
+    Automate the crawler to run on a schedule so the system
+    checks for form updates automatically without manual triggering.
+
+    What I Did
+    - Installed node-cron
+    - Wrapped the crawler inside a cron schedule
+
+    Result
+    System automatically checks SSS for form updates on a set interval.
+
+    Next Step
+    waiting for instructions...
