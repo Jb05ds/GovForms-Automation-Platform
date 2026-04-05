@@ -1,14 +1,12 @@
 module.exports = [
   {
-    name: 'SSS',
+    name: "SSS",
     url: "https://www.sss.gov.ph/download-forms-and-electronic-applications/",
-    selector: "a[href$='.pdf']",
-    baseUrl: ""
+    baseUrl: "https://www.sss.gov.ph"
   },
   {
     name: "PhilHealth",
     url: "https://www.philhealth.gov.ph/downloads/",
-    selector: "a[href$='.pdf']",
     baseUrl: "https://www.philhealth.gov.ph"
   }
-];
+]

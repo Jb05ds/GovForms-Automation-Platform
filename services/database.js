@@ -14,7 +14,7 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl){
     const {data: existing} = await supabase
         .from("form_hashes")
         .select("hash")
-        .eq("file_name", fileName)
+        .eq("source_url", sourceUrl)
         .single();
 
     const isChanged = existing ? existing.hash !== hash : false;
@@ -34,7 +34,7 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl){
             last_checked: new Date().toISOString(),
             is_changed: isChanged
         }, {
-            onConflict: "file_name"
+            onConflict: "source_url"
         });
     
     if(error) {
