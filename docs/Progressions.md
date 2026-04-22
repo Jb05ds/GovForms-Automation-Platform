@@ -97,3 +97,60 @@
 
     Next Step
     waiting for instructions...
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (3-30-2026) – Multiple Selectors (Attempted)
+
+    Goal
+    Improve PDF detection across different sites.
+
+    What I Did
+    - Used multiple hardcoded selectors for PDF links
+
+    Result
+    Not scalable breaks when websites change, requires constant updates.
+
+    Next Step
+    Find a more flexible approach.
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (4-05-2026) – AI-Based Extraction (Groq) (Attempted)
+
+    Goal
+    Use AI to dynamically detect PDF links.
+
+    What I Did
+    - Integrated Groq for AI-based parsing
+
+    Result
+    Not viable hit token limits quickly and not scalable for ~80 sites.
+
+    Next Step
+    Remove AI and simplify the crawler.
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (4-22-2026) – Final Crawler + System Integration
+
+    Goal
+    Build a scalable and working system without AI.
+
+    What I Did
+    - Extracted all `.pdf` links using simple filtering
+    - Built Express API (`/crawl`)
+    - Created frontend UI
+    - Implemented async job polling (`/status/:jobId`)
+    - Fixed env + database issues
+
+    Result
+    Fully working system:
+    - Crawls, downloads, hashes, and stores PDFs
+    - Frontend successfully triggers and tracks crawling
+
+    Next Step
+    - Still thinking...
