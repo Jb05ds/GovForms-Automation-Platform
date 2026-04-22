@@ -7,7 +7,6 @@ const path = require("path");
 const saveHash = require("../services/database");
 const cron = require("node-cron");
 const sources = require("./sources");
-const extractPDFLinks = require("../services/aiExtractor");
 const downloadFile = require("../services/downloader");
 
 async function crawlAgency(agency) {
@@ -21,27 +20,27 @@ async function crawlAgency(agency) {
 
   const $ = cheerio.load(html);
 
-  const links = $("a").map((i, el) => ({
-    text: $(el).text().trim(),
-    href: $(el).attr("href")
-  })).get().filter(l => 
-    l.href && 
-    l.href.trim() !== "" &&
-    (
-      l.href.includes(".pdf") ||
-      l.href.includes("download") ||
-      l.href.includes("form") ||
-      l.href.includes("forms") ||
-      l.text.toLowerCase().includes("form") ||
-      l.text.toLowerCase().includes("download")
-    )
-  );
+  const forms = [];
+  const seenUrls = new Set();
 
-  console.log(`Found ${links.length} total links, asking AI...`);
+  $("a").each((i, el) => {
+    const href = $(el).attr("href");
+    const text = $(el).text().trim();
 
-  const forms = await extractPDFLinks(links, agency.baseUrl);
+    if (!href) return;
 
-  console.log(`AI found ${forms.length} PDF forms for ${agency.name}`);
+    const fullUrl = href.startsWith("http")
+      ? href
+      : `${agency.baseUrl}/${href.replace(/^\//, "")}`;
+
+    if (seenUrls.has(fullUrl)) return;
+    if (!fullUrl.includes(".pdf")) return;
+
+    seenUrls.add(fullUrl);
+    forms.push({ name: text || fullUrl.split("/").pop(), url: fullUrl });
+  });
+
+  console.log(`Found ${forms.length} PDF forms for ${agency.name}`);
 
   for (let form of forms) {
     console.log(`Downloading: ${form.name}`);
@@ -55,6 +54,7 @@ async function crawlAgency(agency) {
   }
 
   console.log(`>>> Done with ${agency.name}`);
+  return { formsFound: forms.length };
 }
 
 async function checkForms() {
@@ -71,10 +71,14 @@ async function checkForms() {
   console.log(`\n[${new Date().toLocaleString()}] All agencies done!`);
 }
 
-console.log("crawler is starting");
-checkForms();
-
-cron.schedule("*/10 * * * *", () => {
-  console.log("Scheduled Crawler Successful");
+if (require.main === module) {
+  console.log("crawler is starting");
   checkForms();
-});
+
+  cron.schedule("*/10 * * * *", () => {
+    console.log("Scheduled Crawler Successful");
+    checkForms();
+  });
+}
+
+module.exports = { crawlAgency };
