@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Checker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 60px auto;
+      padding: 20px;
+    }
+    h1 { font-size: 24px; margin-bottom: 30px; }
+    label { display: block; margin-bottom: 6px; font-weight: bold; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:disabled { background-color: #93c5fd; cursor: not-allowed; }
+    #status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 4px;
+      display: none;
+    }
+    .success { background-color: #dcfce7; color: #166534; }
+    .error { background-color: #fee2e2; color: #991b1b; }
+    .loading { background-color: #fef9c3; color: #854d0e; }
+  </style>
+</head>
+<body>
+
+  <h1>📋 Form Checker</h1>
+
+  <label>Agency Name</label>
+  <input type="text" id="agencyName" placeholder="e.g. SSS" />
+
+  <label>Forms Page URL</label>
+  <input type="text" id="agencyUrl" placeholder="e.g. https://www.sss.gov.ph/download-forms-and-electronic-applications/" />
+
+  <label>Base URL</label>
+  <input type="text" id="baseUrl" placeholder="e.g. https://www.sss.gov.ph" />
+
+  <button id="crawlBtn" onclick="startCrawl()">Start Crawl</button>
+
+  <div id="status"></div>
+
+  <script>
+    async function startCrawl() {
+    const name = document.getElementById("agencyName").value.trim();
+    const url = document.getElementById("agencyUrl").value.trim();
+    const baseUrl = document.getElementById("baseUrl").value.trim();
+    const btn = document.getElementById("crawlBtn");
+
+    if (!name || !url || !baseUrl) {
+        showStatus("Please fill in all fields.", "error");
+        return;
+    }
+
+    btn.disabled = true;
+    showStatus("Starting crawl... ⏳", "loading");
+
+    try {
+        const response = await fetch("http://localhost:3000/crawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, url, baseUrl })
+        });
+
+        const { jobId } = await response.json();
+        showStatus("Crawling in progress... please wait ⏳", "loading");
+
+        const interval = setInterval(async () => {
+        try {
+            const statusRes = await fetch(`http://localhost:3000/status/${jobId}`);
+            const job = await statusRes.json();
+
+            if (job.status === "done") {
+            clearInterval(interval);
+            btn.disabled = false;
+            showStatus(`✅ Done! Found ${job.result.formsFound} forms for ${name}.`, "success");
+            } else if (job.status === "error") {
+            clearInterval(interval);
+            btn.disabled = false;
+            showStatus(`❌ Error: ${job.error}`, "error");
+            }
+        } catch (err) {
+            clearInterval(interval);
+            btn.disabled = false;
+            showStatus(`❌ Error checking status: ${err.message}`, "error");
+        }
+        }, 3000);
+
+    } catch (error) {
+        btn.disabled = false;
+        showStatus(`❌ Could not connect to server: ${error.message}`, "error");
+    }
+    }
+
+    function showStatus(message, type) {
+      const status = document.getElementById("status");
+      status.textContent = message;
+      status.className = type;
+      status.style.display = "block";
+    }
+  </script>
+
+</body>
+</html>

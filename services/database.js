@@ -1,8 +1,10 @@
-require("dotenv").config();
 require("dotenv").config({ 
-  path: "C:\\Users\\rayma\\OneDrive\\Desktop\\gov-formChecker\\form-checker\\.env" 
+  path: require("path").resolve(__dirname, "../.env") 
 });
-    
+
+console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
+console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "loaded" : "missing");
+
 const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient (
