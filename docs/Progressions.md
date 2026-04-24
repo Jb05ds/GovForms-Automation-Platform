@@ -127,7 +127,7 @@
     - Integrated Groq for AI-based parsing
 
     Result
-    Not viable hit token limits quickly and not scalable for ~80 sites.
+    Not viable hit token limits quickly and not scalable for 90+ sites.
 
     Next Step
     Remove AI and simplify the crawler.
@@ -145,7 +145,6 @@
     - Built Express API (`/crawl`)
     - Created frontend UI
     - Implemented async job polling (`/status/:jobId`)
-    - Fixed env + database issues
 
     Result
     Fully working system:
@@ -153,4 +152,26 @@
     - Frontend successfully triggers and tracks crawling
 
     Next Step
-    - Still thinking...
+    - Exploring other easy to crawl sites
+
+
+    --------------------------------------------------------------------------
+    --------------------------------------------------------------------------
+
+    (4-24-2026 - Present) – Exploring and Documenting Target Sites
+
+    Goal
+    Expand the list of government websites to crawl.
+
+    What I Did
+    - Reviewed multiple government sites for PDF availability
+    - Identified which sites are crawlable vs protected (e.g. Cloudflare, external hosting)
+    - Noted differences in structure (direct PDF links, embedded pages, downloads)
+    - Documented base URLs and form pages for each agency
+
+    Result
+    Compiled a list of potential target sites and categorized them based on crawl difficulty and feasibility.
+
+    Next Step
+    - Start integrating additional agencies into the crawler
+    - Adjust logic if needed for edge cases (relative links, redirects, etc.)

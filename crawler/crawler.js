@@ -15,6 +15,7 @@ async function crawlAgency(agency) {
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(agency.url, { waitUntil: "networkidle2" });
+  await randomDelay();
   const html = await page.content();
   await browser.close();
 
@@ -79,6 +80,13 @@ if (require.main === module) {
     console.log("Scheduled Crawler Successful");
     checkForms();
   });
+}
+
+
+function randomDelay(min = 1000, max = 3000) {
+  return new Promise(resolve => 
+    setTimeout(resolve, Math.floor(Math.random() * (max - min) + min))
+  );
 }
 
 module.exports = { crawlAgency };
