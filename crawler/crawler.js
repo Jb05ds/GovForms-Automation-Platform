@@ -12,10 +12,23 @@ const downloadFile = require("../services/downloader");
 async function crawlAgency(agency) {
   console.log(`\n>>> Crawling ${agency.name}...`);
 
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+  headless: true,
+  ignoreHTTPSErrors: true,
+  args: ["--ignore-certificate-errors"]
+  });
+
   const page = await browser.newPage();
+  
+  await page.setBypassCSP(true);
+  
   await page.goto(agency.url, { waitUntil: "networkidle2" });
   await randomDelay();
+  try {
+  await page.waitForSelector('.accordion-body', { timeout: 5000 });
+  } catch(e) {
+    console.log('No accordion found, continuing...');
+  }
   const html = await page.content();
   await browser.close();
 
@@ -35,7 +48,11 @@ async function crawlAgency(agency) {
       : `${agency.baseUrl}/${href.replace(/^\//, "")}`;
 
     if (seenUrls.has(fullUrl)) return;
-    if (!fullUrl.includes(".pdf")) return;
+    if (
+    !fullUrl.includes(".pdf") && 
+    !fullUrl.includes(".docx") && 
+    !fullUrl.includes("drive.google.com/uc?export=download")
+  ) return;
 
     seenUrls.add(fullUrl);
     forms.push({ name: text || fullUrl.split("/").pop(), url: fullUrl });
@@ -47,7 +64,7 @@ async function crawlAgency(agency) {
     console.log(`Downloading: ${form.name}`);
     await downloadFile(form.url);
 
-    const fileName = form.url.split("/").pop();
+    const fileName = decodeURIComponent(form.url.split("/").pop());
     const filePath = path.join(__dirname, "../downloads", fileName);
 
     const hash = generateHash(filePath);

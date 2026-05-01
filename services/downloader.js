@@ -5,7 +5,7 @@ const path = require("path");
 async function downloadFile(url) {
   try {
 
-    const fileName = url.split("/").pop();
+    const fileName = decodeURIComponent(url.split("/").pop());
 
     const filePath = path.join(__dirname, "../downloads", fileName);
 
