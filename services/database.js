@@ -2,9 +2,6 @@ require("dotenv").config({
   path: require("path").resolve(__dirname, "../.env") 
 });
 
-console.log("SUPABASE_URL:", process.env.SUPABASE_URL);
-console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "loaded" : "missing");
-
 const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient (
@@ -46,4 +43,26 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl){
     }
 }
 
-module.exports = saveHash;
+async function getSources() {
+  console.log("Fetching sources from Supabase...");
+  
+  const { data, error } = await supabase
+    .from("sources")
+    .select("*")
+
+  console.log("data:", data);
+  console.log("error:", error);
+
+  if (error) {
+    console.error("Error fetching sources:", error.message);
+    return [];
+  }
+
+  return data.map(row => ({
+    name: row.agency_name,
+    url: row.source_url,
+    baseUrl: new URL(row.source_url).origin
+  }));
+}
+
+module.exports = { saveHash, getSources };
