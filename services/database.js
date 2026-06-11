@@ -49,9 +49,7 @@ async function getSources() {
   const { data, error } = await supabase
     .from("sources")
     .select("*")
-
-  console.log("data:", data);
-  console.log("error:", error);
+    .eq("active", true);
 
   if (error) {
     console.error("Error fetching sources:", error.message);

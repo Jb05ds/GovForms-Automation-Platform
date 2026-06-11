@@ -68,6 +68,16 @@ async function crawlAgency(agency) {
 
     const fullUrl = new URL(link.url, agency.baseUrl).href;
 
+    const blockedKeywords = [
+      "guideline", "guidelines", "manual", "circular", "charter",
+      "annual report", "infographic", "poster", "memorandum",
+      "brochure", "faq", "faqs", "bulletin", "advisory",
+      "handbook", "primer", "newsletter", "press release",
+      "executive order", "republic act", "implementing rules",
+      "citizen's charter", "citizens charter", "privacy notice",
+      "privacy policy", "terms", "annual", "report", "law",
+    ];
+
     if (seenUrls.has(fullUrl)) continue;
     if (!fullUrl.startsWith(agency.baseUrl)) continue;
 
@@ -78,10 +88,21 @@ async function crawlAgency(agency) {
     ) {
       seenUrls.add(fullUrl);
 
+      const linkName = (link.name && link.name !== "Download" && link.name !== "")
+      ? link.name
+      : docodeURIComponent(fullUrl.split("/").pop());
+
+      const isBlocked = blockedKeywords.some(keyword =>
+        linkName.toLowerCase().includes(keyword)
+      );
+
+      if (isBlocked) {
+        console.log(`[SKIPPED] ${linkName}`);
+        continue;
+      }
+
       forms.push({
-        name: (link.name && link.name !== "Download" && link.name !== "") 
-          ? link.name 
-          : decodeURIComponent(fullUrl.split("/").pop()),
+        name: linkName,
         url: fullUrl
       });
     }
