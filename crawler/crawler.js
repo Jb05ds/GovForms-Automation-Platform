@@ -90,7 +90,7 @@ async function crawlAgency(agency) {
 
       const linkName = (link.name && link.name !== "Download" && link.name !== "")
       ? link.name
-      : docodeURIComponent(fullUrl.split("/").pop());
+      : decodeURIComponent(fullUrl.split("/").pop());
 
       const isBlocked = blockedKeywords.some(keyword =>
         linkName.toLowerCase().includes(keyword)
@@ -112,10 +112,20 @@ async function crawlAgency(agency) {
 
   for (let form of forms) {
     console.log(`Downloading: ${form.name}`);
-    await downloadFile(form.url);
+    try {
+      await downloadFile(form.url);
+    } catch (err) {
+      console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
+      continue;
+    }
 
     const fileName = decodeURIComponent(form.url.split("/").pop());
     const filePath = path.join(__dirname, "../downloads", fileName);
+
+    if (!fs.existsSync(filePath)) {
+      console.log(`[SKIPPED HASH] File not found after download: ${fileName}`);
+      continue;
+    }
 
     const hash = generateHash(filePath);
     await saveHash(agency.name, form.name, fileName, hash, form.url);
