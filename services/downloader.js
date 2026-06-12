@@ -13,6 +13,7 @@ async function downloadFile(url) {
     url: url,
     method: "GET",
     responseType: "stream",
+    timeout: 30000,
     headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
@@ -33,6 +34,7 @@ async function downloadFile(url) {
 
   } catch (error) {
     console.error("Download error:", error.message);
+    throw error; // let crawler.js handle it and skip the hash step
   }
 }
 
