@@ -16,10 +16,15 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl){
         .eq("source_url", sourceUrl)
         .single();
 
+    const isNew = !existing;
     const isChanged = existing ? existing.hash !== hash : false;
 
     if(isChanged) {
         console.log(`CHANGE DETECTED: ${formName}`)
+    }
+
+    if(isNew) {
+        console.log (`NEW FORM DETECTED: ${formName}`)
     }
 
     const { error } = await supabase
