@@ -76,6 +76,8 @@ async function crawlAgency(agency) {
       "executive order", "republic act", "implementing rules",
       "citizen's charter", "citizens charter", "privacy notice",
       "privacy policy", "terms", "annual", "report", "law",
+      "reminder", "reminders", "guide", "implementation guide",
+      "overview", "infographic", "checklist of requirements",
     ];
 
     if (seenUrls.has(fullUrl)) continue;
@@ -126,9 +128,14 @@ async function crawlAgency(agency) {
       console.log(`[SKIPPED HASH] File not found after download: ${fileName}`);
       continue;
     }
+    
+    try {
+      const hash = generateHash(filePath);
+      await saveHash(agency.name, form.name, fileName, hash, form.url);
+    } catch (err) {
+      console.error(`Failed to save hash for ${form.name}:`, err.message);
+    }
 
-    const hash = generateHash(filePath);
-    await saveHash(agency.name, form.name, fileName, hash, form.url);
   }
 
   console.log(`>>> Done with ${agency.name}`);
@@ -156,10 +163,11 @@ if (require.main === module) {
   console.log("crawler is starting");
   checkForms();
 
-  cron.schedule("*/10 * * * *", () => {
-    console.log("Scheduled Crawler Successful");
-    checkForms();
-  });
+  //putting this on timeout for now since i dont need it yet
+//  cron.schedule("*/30 * * * *", () => {
+//    console.log("Scheduled Crawler Successful");
+//    checkForms();
+//  });
 }
 
 
