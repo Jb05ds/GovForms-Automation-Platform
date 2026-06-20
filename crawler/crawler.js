@@ -24,7 +24,8 @@ async function crawlAgency(agency) {
   console.log(`\n>>> Crawling ${agency.name}...`);
 
   const browser = await puppeteer.launch({
-  headless: true,
+  headless: false,
+  userDataDir: "./browser-session",
   ignoreHTTPSErrors: true,
   args: [
     "--ignore-certificate-errors",
@@ -50,6 +51,8 @@ async function crawlAgency(agency) {
     console.log('No accordion found, continuing...');
   }
   await page.waitForSelector("a[href]", { timeout: 10000 });
+  const pageTitle = await page.title();
+  console.log("Page title:", pageTitle);
 
   const links = await page.$$eval("a", anchors =>
     anchors.map(a => ({
@@ -81,7 +84,7 @@ async function crawlAgency(agency) {
     ];
 
     if (seenUrls.has(fullUrl)) continue;
-    if (!fullUrl.startsWith(agency.baseUrl)) continue;
+    //if (!fullUrl.startsWith(agency.baseUrl)) continue;
 
     if (
       fullUrl.toLowerCase().includes(".pdf") ||
@@ -171,7 +174,7 @@ if (require.main === module) {
 }
 
 
-function randomDelay(min = 1000, max = 3000) {
+function randomDelay(min = 4000, max = 6000) {
   return new Promise(resolve => 
     setTimeout(resolve, Math.floor(Math.random() * (max - min) + min))
   );
