@@ -70,6 +70,8 @@ async function crawlAgency(agency) {
     if (!link.url) continue;
 
     const fullUrl = new URL(link.url, agency.baseUrl).href;
+    const googleDocPattern = /docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([a-zA-Z0-9_-]+)/;
+    const googleDrivePattern = /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/;
 
     const blockedKeywords = [
       "guideline", "guidelines", "manual", "circular", "charter",
@@ -89,7 +91,9 @@ async function crawlAgency(agency) {
     if (
       fullUrl.toLowerCase().includes(".pdf") ||
       fullUrl.toLowerCase().includes(".docx") ||
-      fullUrl.includes("drive.google.com/uc?export=download")
+      fullUrl.includes("drive.google.com/uc?export=download") ||
+      googleDocPattern.test(fullUrl) ||
+      googleDrivePattern.test(fullUrl)
     ) {
       seenUrls.add(fullUrl);
 
@@ -108,7 +112,7 @@ async function crawlAgency(agency) {
 
       forms.push({
         name: linkName,
-        url: fullUrl
+        url: convertGoogleUrl(fullUrl)
       });
     }
   }
@@ -178,6 +182,23 @@ function randomDelay(min = 4000, max = 6000) {
   return new Promise(resolve => 
     setTimeout(resolve, Math.floor(Math.random() * (max - min) + min))
   );
+}
+
+function convertGoogleUrl(url) {
+  const docMatch = url.match(/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([a-zA-Z0-9_-]+)/);
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+
+  if (docMatch) {
+    const [, type, id] = docMatch;
+    const exportFormat = type === "spreadsheets" ? "xlsx" : type === "presentation" ? "pptx" : "docx";
+    return `https://docs.google.com/${type}/d/${id}/export?format=${exportFormat}`;
+  }
+
+  if (driveMatch) {
+    return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+  }
+
+  return url;
 }
 
 async function safeGoto(page, url) {
