@@ -121,20 +121,23 @@ async function crawlAgency(agency) {
 
   for (let form of forms) {
     console.log(`Downloading: ${form.name}`);
+
+    const fileName = getFileName(form);
+
     try {
-      await downloadFile(form.url);
+      await downloadFile(form.url, fileName);
     } catch (err) {
       console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
       continue;
     }
 
-    const fileName = decodeURIComponent(form.url.split("/").pop());
     const filePath = path.join(__dirname, "../downloads", fileName);
 
     if (!fs.existsSync(filePath)) {
       console.log(`[SKIPPED HASH] File not found after download: ${fileName}`);
       continue;
     }
+
     
     try {
       const hash = generateHash(filePath);
@@ -199,6 +202,20 @@ function convertGoogleUrl(url) {
   }
 
   return url;
+}
+
+function getFileName(form) {
+  const googleDocMatch = form.url.match(/\/d\/([a-zA-Z0-9_-]+)\/export\?format=(\w+)/);
+  const googleDriveMatch = form.url.match(/id=([a-zA-Z0-9_-]+)/);
+
+  if (googleDocMatch) {
+    const [, id, ext] = googleDocMatch;
+    return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${id}.${ext}`;
+  }
+  if (googleDriveMatch) {
+    return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${googleDriveMatch[1]}.pdf`;
+  }
+  return decodeURIComponent(form.url.split("/").pop());
 }
 
 async function safeGoto(page, url) {

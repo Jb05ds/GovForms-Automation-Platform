@@ -3,10 +3,8 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
-async function downloadFile(url) {
+async function downloadFile(url, fileName) {
   try {
-
-    const fileName = decodeURIComponent(url.split("/").pop());
 
     const filePath = path.join(__dirname, "../downloads", fileName);
 
