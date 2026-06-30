@@ -91,6 +91,9 @@ async function crawlAgency(agency) {
     if (
       fullUrl.toLowerCase().includes(".pdf") ||
       fullUrl.toLowerCase().includes(".docx") ||
+      fullUrl.toLowerCase().includes(".doc") ||
+      fullUrl.toLowerCase().includes(".xlsx") ||
+      fullUrl.toLowerCase().includes(".xls") ||
       fullUrl.includes("drive.google.com/uc?export=download") ||
       googleDocPattern.test(fullUrl) ||
       googleDrivePattern.test(fullUrl)
