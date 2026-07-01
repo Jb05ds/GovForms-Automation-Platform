@@ -37,6 +37,12 @@ async function crawlAgency(agency) {
   });
 
   const page = await browser.newPage(); 
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+  );
+
+  await page.setViewport({ width: 1366, height: 768 });
+
   page.on("requestfailed", request => {
   console.log("FAILED:", request.url(), request.failure()?.errorText);
   });
@@ -44,6 +50,7 @@ async function crawlAgency(agency) {
   await page.setBypassCSP(true);
 
   await safeGoto(page, agency.url);
+  await waitForCLoudflare(page);
   await randomDelay();
   try {
   await page.waitForSelector('.accordion-body', { timeout: 5000 });
@@ -55,10 +62,35 @@ async function crawlAgency(agency) {
   console.log("Page title:", pageTitle);
 
   const links = await page.$$eval("a", anchors =>
-    anchors.map(a => ({
-      url: a.href,
-      name: a.innerText.trim()
-    }))
+    anchors.map(a => {
+      const linkText =  a.innerText.trim();
+      let name = linkText;  
+
+      const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
+
+      if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+        let container = a.closest("tr, li, div, td");
+        let attempts = 0;
+        
+        while (container && attempts  < 2){
+          const possibleLinks = Array.from(container.querySelectorAll("a"));
+          for (const link of possibleLinks) {
+            const text = link.innerText.trim();
+            const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
+            const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
+            if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+              name = text;
+              break;
+            }
+          }
+          if (name !== linkText) break;
+          container = container.parentElement;
+          attempts++
+        }
+      }
+
+      return {url: a.href, name};
+    })
   );
 
   await browser.close();
@@ -223,12 +255,23 @@ function getFileName(form) {
 
 async function safeGoto(page, url) {
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
   } catch (err) {
-    console.log("HTTPS failed, trying HTTP...");
-
+    console.log("Navigation failed, trying HTTP...");
     const httpUrl = url.replace("https://", "http://");
-    await page.goto(httpUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.goto(httpUrl, { waitUntil: "networkidle2", timeout: 30000 });
+  }
+}
+
+async function waitForCloudflare(page) {
+  const title = await page.title();
+  if (title.includes("Just a moment") || title.includes("Attention Required")) {
+    console.log("Cloudflare challenge detected, waiting...");
+    await page.waitForFunction(
+      () => !document.title.includes("just a moment"),
+        { timeout: 20000 }
+    );
+    await randomDelay(2000, 4000)
   }
 }
 
