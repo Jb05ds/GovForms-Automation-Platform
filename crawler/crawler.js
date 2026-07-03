@@ -46,11 +46,11 @@ async function crawlAgency(agency) {
   page.on("requestfailed", request => {
   console.log("FAILED:", request.url(), request.failure()?.errorText);
   });
-  
+    
   await page.setBypassCSP(true);
 
   await safeGoto(page, agency.url);
-  await waitForCLoudflare(page);
+  await waitForCloudflare(page);
   await randomDelay();
   try {
   await page.waitForSelector('.accordion-body', { timeout: 5000 });
