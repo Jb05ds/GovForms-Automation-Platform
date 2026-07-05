@@ -21,6 +21,7 @@
     "fs": "^0.0.1-security",
     "groq-sdk": "^1.1.2",
     "node-cron": "^4.2.1",
+    "node-fetch": "^2.7.0",
     "path": "^0.12.7",
     "puppeteer": "^24.39.1",
     "puppeteer-extra": "^3.3.6",

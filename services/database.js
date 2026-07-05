@@ -56,7 +56,7 @@ async function getSources() {
     .select("*")
     .eq("active", true)
     .eq("id", "8");
-
+    
   if (error) {
     console.error("Error fetching sources:", error.message);
     return [];
@@ -65,7 +65,8 @@ async function getSources() {
   return data.map(row => ({
     name: row.agency_name,
     url: row.source_url,
-    baseUrl: new URL(row.source_url).origin
+    baseUrl: new URL(row.source_url).origin,
+    crawl_status: row.crawl_status,
   }));
 }
 

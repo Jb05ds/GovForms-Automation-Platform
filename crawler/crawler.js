@@ -4,6 +4,7 @@ require("dotenv").config({
 
 
 const puppeteer = require("puppeteer-extra");
+const cheerio = require("cheerio");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 puppeteer.use(StealthPlugin());
 const generateHash = require("../services/hasher");
@@ -12,6 +13,7 @@ const {saveHash, getSources} = require("../services/database");
 const cron = require("node-cron");
 const fs = require("fs");
 const downloadFile = require("../services/downloader");
+const fetch = require("node-fetch");
 
 const downloadsDir = path.join(__dirname, "../downloads");
 if (!fs.existsSync(downloadsDir)) {
@@ -23,77 +25,19 @@ if (!fs.existsSync(downloadsDir)) {
 async function crawlAgency(agency) {
   console.log(`\n>>> Crawling ${agency.name}...`);
 
-  const browser = await puppeteer.launch({
-  headless: false,
-  userDataDir: "./browser-session",
-  ignoreHTTPSErrors: true,
-  args: [
-    "--ignore-certificate-errors",
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-web-security",
-    "--disable-features=IsolateOrigins,site-per-process"
-  ]
-  });
+  let links = [];
 
-  const page = await browser.newPage(); 
-  await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-  );
-
-  await page.setViewport({ width: 1366, height: 768 });
-
-  page.on("requestfailed", request => {
-  console.log("FAILED:", request.url(), request.failure()?.errorText);
-  });
-    
-  await page.setBypassCSP(true);
-
-  await safeGoto(page, agency.url);
-  await waitForCloudflare(page);
-  await randomDelay();
-  try {
-  await page.waitForSelector('.accordion-body', { timeout: 5000 });
-  } catch(e) {
-    console.log('No accordion found, continuing...');
+  if (agency.crawl_status === "cloudflare") {
+    console.log(`Using ScraperAPI for CF-protected site...`);
+    const html = await fetchWithScraperAPI(agency.url);
+    if (!html) {
+      console.log(`[SCRAPER API FAILED] No HTML returned for ${agency.name}`);
+      return { formsFound: 0 };
+    }
+    links = extractLinksFromHTML(html, agency.url);
+  } else {
+    links = await extractLinksWithPuppeteer(agency);
   }
-  await page.waitForSelector("a[href]", { timeout: 10000 });
-  const pageTitle = await page.title();
-  console.log("Page title:", pageTitle);
-
-  const links = await page.$$eval("a", anchors =>
-    anchors.map(a => {
-      const linkText =  a.innerText.trim();
-      let name = linkText;  
-
-      const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-
-      if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
-        let container = a.closest("tr, li, div, td");
-        let attempts = 0;
-        
-        while (container && attempts  < 2){
-          const possibleLinks = Array.from(container.querySelectorAll("a"));
-          for (const link of possibleLinks) {
-            const text = link.innerText.trim();
-            const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-            const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
-            if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
-              name = text;
-              break;
-            }
-          }
-          if (name !== linkText) break;
-          container = container.parentElement;
-          attempts++
-        }
-      }
-
-      return {url: a.href, name};
-    })
-  );
-
-  await browser.close();
 
   const forms = [];
   const seenUrls = new Set();
@@ -155,16 +99,20 @@ async function crawlAgency(agency) {
   console.log(`Found ${forms.length} PDF forms for ${agency.name}`);
 
   for (let form of forms) {
-    console.log(`Downloading: ${form.name}`);
+  console.log(`Downloading: ${form.name}`);
 
-    const fileName = getFileName(form);
+  const fileName = getFileName(form);
 
-    try {
+  try {
+    if (agency.crawl_status === "cloudflare") {
+      await downloadFileWithScraperAPI(form.url, fileName);
+    } else {
       await downloadFile(form.url, fileName);
-    } catch (err) {
-      console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
-      continue;
     }
+  } catch (err) {
+    console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
+    continue;
+  }
 
     const filePath = path.join(__dirname, "../downloads", fileName);
 
@@ -251,6 +199,146 @@ function getFileName(form) {
     return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${googleDriveMatch[1]}.pdf`;
   }
   return decodeURIComponent(form.url.split("/").pop());
+}
+
+function extractLinksFromHTML(html, baseUrl) {
+  const $ = cheerio.load(html);
+  const links = [];
+
+  $("a").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!href) return;
+
+    let fullUrl;
+    try {
+      fullUrl = new URL(href, baseUrl).href;
+    } catch {
+      return;
+    }
+
+    const linkText = $(el).text().trim();
+    let name = linkText;
+
+    if (!linkText || /\.(pdf|docx?|xlsx?)$/i.test(linkText) || 
+        ["click here", "download"].includes(linkText.toLowerCase())) {
+      name = decodeURIComponent(href.split("/").pop()) || linkText;
+    }
+
+    links.push({ url: fullUrl, name });
+  });
+
+  return links;
+}
+
+async function extractLinksWithPuppeteer(agency) {
+  const browser = await puppeteer.launch({
+    headless: false,
+    userDataDir: "./browser-session",
+    ignoreHTTPSErrors: true,
+    args: [
+      "--ignore-certificate-errors",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-web-security",
+      "--disable-features=IsolateOrigins,site-per-process"
+    ]
+  });
+
+  const page = await browser.newPage();
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+  await page.setViewport({ width: 1366, height: 768 });
+  page.on("requestfailed", request => {
+    console.log("FAILED:", request.url(), request.failure()?.errorText);
+  });
+  await page.setBypassCSP(true);
+  await safeGoto(page, agency.url);
+  await waitForCloudflare(page);
+  await randomDelay();
+
+  try {
+    await page.waitForSelector('.accordion-body', { timeout: 5000 });
+  } catch(e) {
+    console.log('No accordion found, continuing...');
+  }
+  await page.waitForSelector("a[href]", { timeout: 10000 });
+  console.log("Page title:", await page.title());
+
+  const links = await page.$$eval("a", anchors =>
+    anchors.map(a => {
+      const linkText = a.innerText.trim();
+      let name = linkText;
+      const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
+      if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+        let container = a.closest("tr, li, div, td");
+        let attempts = 0;
+        while (container && attempts < 2) {
+          const possibleLinks = Array.from(container.querySelectorAll("a"));
+          for (const link of possibleLinks) {
+            const text = link.innerText.trim();
+            const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
+            const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
+            if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+              name = text;
+              break;
+            }
+          }
+          if (name !== linkText) break;
+          container = container.parentElement;
+          attempts++;
+        }
+      }
+      return { url: a.href, name };
+    })
+  );
+
+  await browser.close();
+  return links;
+}
+
+async function fetchWithScraperAPI(url, retries = 3) {
+  const API_KEY = process.env.SCRAPER_API_KEY;
+  if (!API_KEY) throw new Error("SCRAPER_API_KEY not set in .env");
+
+  const scraperUrl = `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}&render=true`;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`[SCRAPER API] Attempt ${attempt}/${retries} for ${url}`);
+      const response = await fetch(scraperUrl, { timeout: 60000 });
+      if (!response.ok) {
+        console.log(`[SCRAPER API] HTTP ${response.status} on attempt ${attempt}`);
+        if (attempt < retries) {
+          await randomDelay(3000, 6000);
+          continue;
+        }
+        return null;
+      }
+      const html = await response.text();
+      console.log(`[SCRAPER API] Got ${html.length} chars for ${url}`);
+      return html;
+    } catch (err) {
+      console.log(`[SCRAPER API ERROR] Attempt ${attempt}: ${err.message}`);
+      if (attempt < retries) await randomDelay(3000, 6000);
+    }
+  }
+
+  return null;
+}
+
+async function downloadFileWithScraperAPI(url, fileName) {
+  const API_KEY = process.env.SCRAPER_API_KEY;
+  const scraperUrl = `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}`;
+
+  const response = await fetch(scraperUrl, { timeout: 60000 });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status code ${response.status}`);
+  }
+
+  const buffer = await response.buffer();
+  const filePath = path.join(__dirname, "../downloads", fileName);
+  fs.writeFileSync(filePath, buffer);
+  console.log(`[DOWNLOADED] ${fileName}`);
 }
 
 async function safeGoto(page, url) {
