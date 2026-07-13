@@ -35,6 +35,9 @@ async function crawlAgency(agency) {
       return { formsFound: 0 };
     }
     links = extractLinksFromHTML(html, agency.url);
+  } else if (agency.crawl_status === "puppeteer_only") {
+    console.log(`Using Puppeteer with manual CF solve...`);
+    links = await extractLinksWithPuppeteer(agency, true);
   } else {
     links = await extractLinksWithPuppeteer(agency);
   }
@@ -233,14 +236,16 @@ function extractLinksFromHTML(html, baseUrl) {
 async function extractLinksWithPuppeteer(agency) {
   const browser = await puppeteer.launch({
     headless: false,
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     userDataDir: "./browser-session",
     ignoreHTTPSErrors: true,
     args: [
-      "--ignore-certificate-errors",
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-web-security",
-      "--disable-features=IsolateOrigins,site-per-process"
+      "--disable-blink-features=AutomationControlled",
+      "--dns-prefetch-disable",
+      "--no-pings",
+      "--disable-features=DnsOverHttps",
     ]
   });
 
@@ -252,7 +257,7 @@ async function extractLinksWithPuppeteer(agency) {
   });
   await page.setBypassCSP(true);
   await safeGoto(page, agency.url);
-  await waitForCloudflare(page);
+  await waitForCloudflare(page, manual);
   await randomDelay();
 
   try {
@@ -260,7 +265,7 @@ async function extractLinksWithPuppeteer(agency) {
   } catch(e) {
     console.log('No accordion found, continuing...');
   }
-  await page.waitForSelector("a[href]", { timeout: 10000 });
+  await page.waitForSelector("a[href]", { timeout: 15000 });
   console.log("Page title:", await page.title());
 
   const links = await page.$$eval("a", anchors =>
@@ -299,11 +304,15 @@ async function fetchWithScraperAPI(url, retries = 3) {
   const API_KEY = process.env.SCRAPER_API_KEY;
   if (!API_KEY) throw new Error("SCRAPER_API_KEY not set in .env");
 
-  const scraperUrl = `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}&render=true`;
-
   for (let attempt = 1; attempt <= retries; attempt++) {
+
+  const premium = attempt === retries ? "&premium=true" : "";
+
+  const scraperUrl =
+    `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}&render=true${premium}`;
+
     try {
-      console.log(`[SCRAPER API] Attempt ${attempt}/${retries} for ${url}`);
+      console.log(`[SCRAPER API] Attempt ${attempt}/${retries}/${premium ? " (premium)": ""} for ${url}`);
       const response = await fetch(scraperUrl, { timeout: 60000 });
       if (!response.ok) {
         console.log(`[SCRAPER API] HTTP ${response.status} on attempt ${attempt}`);
@@ -351,15 +360,42 @@ async function safeGoto(page, url) {
   }
 }
 
-async function waitForCloudflare(page) {
+async function waitForCloudflare(page, manual = false) {
   const title = await page.title();
-  if (title.includes("Just a moment") || title.includes("Attention Required")) {
-    console.log("Cloudflare challenge detected, waiting...");
+  const isChallenge = title.includes("Just a moment") || title.includes("Attention Required");
+  if (!isChallenge) return;
+
+  if (manual) {
+    console.log("\n⚠️  MANUAL ACTION REQUIRED");
+    console.log(`   → Solve the Cloudflare challenge in the browser window`);
+    console.log(`   → Then come back here and press ENTER to continue...\n`);
+    await new Promise(resolve => {
+      process.stdin.resume();
+      process.stdin.setEncoding("utf8");
+      process.stdin.once("data", () => {
+        process.stdin.pause();
+        resolve();
+      });
+    });
+
     await page.waitForFunction(
-      () => !document.title.includes("just a moment"),
-        { timeout: 20000 }
+      () => !document.title.includes("Just a moment") && !document.title.includes("Attention Required"),
+      { timeout: 30000 }
     );
-    await randomDelay(2000, 4000)
+    await page.waitForLoadState?.("networkidle").catch(() => {});
+    console.log("CF cleared! Page title:", await page.title());
+    await randomDelay(2000, 3000);
+  } else {
+    console.log("Cloudflare challenge detected, waiting for auto-solve...");
+    try {
+      await page.waitForFunction(
+        () => !document.title.includes("Just a moment"),
+        { timeout: 20000 }
+      );
+      await randomDelay(2000, 4000);
+    } catch {
+      console.log("Auto-solve timed out.");
+    }
   }
 }
 
