@@ -233,7 +233,7 @@ function extractLinksFromHTML(html, baseUrl) {
   return links;
 }
 
-async function extractLinksWithPuppeteer(agency) {
+async function extractLinksWithPuppeteer(agency, manual = false) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -309,7 +309,7 @@ async function fetchWithScraperAPI(url, retries = 3) {
   const premium = attempt === retries ? "&premium=true" : "";
 
   const scraperUrl =
-    `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}&render=true${premium}`;
+    `http://api.scraperapi.com?api_key=${API_KEY}&url=${encodeURIComponent(url)}&render=true&country_code=us&premium=true&retry=3`;
 
     try {
       console.log(`[SCRAPER API] Attempt ${attempt}/${retries}/${premium ? " (premium)": ""} for ${url}`);
