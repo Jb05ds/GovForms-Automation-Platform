@@ -270,6 +270,14 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
   await page.waitForSelector("a[href]", { timeout: 15000 });
   console.log("Page title:", await page.title());
 
+  const html = await page.content();
+    fs.writeFileSync("debug.html", html);
+
+    await page.screenshot({
+        path: "debug.png",
+        fullPage: true
+    });
+
   const links = await page.$$eval("a", anchors =>
     anchors.map(a => {
       const linkText = a.innerText.trim();
