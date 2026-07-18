@@ -234,9 +234,11 @@ function extractLinksFromHTML(html, baseUrl) {
 }
 
 async function extractLinksWithPuppeteer(agency, manual = false) {
+  const isWindows = process.platform === "win32";
+
   const browser = await puppeteer.launch({
-    headless: false,
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    headless: isWindows ? false : "new",
+    ...(isWindows && { executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' }),
     userDataDir: "./browser-session",
     ignoreHTTPSErrors: true,
     args: [
@@ -365,7 +367,9 @@ async function waitForCloudflare(page, manual = false) {
   const isChallenge = title.includes("Just a moment") || title.includes("Attention Required");
   if (!isChallenge) return;
 
-  if (manual) {
+  const canPromptInteractively = manual && process.stdin.isTTY;
+
+  if (canPromptInteractively) {
     console.log("\n⚠️  MANUAL ACTION REQUIRED");
     console.log(`   → Solve the Cloudflare challenge in the browser window`);
     console.log(`   → Then come back here and press ENTER to continue...\n`);
@@ -386,15 +390,16 @@ async function waitForCloudflare(page, manual = false) {
     console.log("CF cleared! Page title:", await page.title());
     await randomDelay(2000, 3000);
   } else {
-    console.log("Cloudflare challenge detected, waiting for auto-solve...");
+    console.log("Cloudflare challenge detected, waiting for auto-solve (non-interactive)...");
     try {
       await page.waitForFunction(
         () => !document.title.includes("Just a moment"),
-        { timeout: 20000 }
+        { timeout: 30000 }
       );
+      console.log("✅ Cleared automatically. Page title:", await page.title());
       await randomDelay(2000, 4000);
     } catch {
-      console.log("Auto-solve timed out.");
+      console.log("❌ Did not clear within 30s — continuing anyway.");
     }
   }
 }
