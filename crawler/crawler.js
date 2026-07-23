@@ -251,62 +251,65 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
     ]
   });
 
-  const page = await browser.newPage();
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
-  await page.setViewport({ width: 1366, height: 768 });
-  page.on("requestfailed", request => {
-    console.log("FAILED:", request.url(), request.failure()?.errorText);
-  });
-  await page.setBypassCSP(true);
-  await safeGoto(page, agency.url);
-  await waitForCloudflare(page, manual);
-  await randomDelay();
+  let links = [];
 
   try {
-    await page.waitForSelector('.accordion-body', { timeout: 5000 });
-  } catch(e) {
-    console.log('No accordion found, continuing...');
-  }
-  await page.waitForSelector("a[href]", { timeout: 15000 });
-  console.log("Page title:", await page.title());
-
-  const html = await page.content();
-    fs.writeFileSync("debug.html", html);
-
-    await page.screenshot({
-        path: "debug.png",
-        fullPage: true
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1366, height: 768 });
+    page.on("requestfailed", request => {
+      console.log("FAILED:", request.url(), request.failure()?.errorText);
     });
+    await page.setBypassCSP(true);
+    await safeGoto(page, agency.url);
+    await waitForCloudflare(page, manual);
+    await randomDelay();
 
-  const links = await page.$$eval("a", anchors =>
-    anchors.map(a => {
-      const linkText = a.innerText.trim();
-      let name = linkText;
-      const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-      if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
-        let container = a.closest("tr, li, div, td");
-        let attempts = 0;
-        while (container && attempts < 2) {
-          const possibleLinks = Array.from(container.querySelectorAll("a"));
-          for (const link of possibleLinks) {
-            const text = link.innerText.trim();
-            const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-            const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
-            if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
-              name = text;
-              break;
+    try {
+      await page.waitForSelector('.accordion-body', { timeout: 5000 });
+    } catch(e) {
+      console.log('No accordion found, continuing...');
+    }
+
+    try {
+      await page.waitForSelector("a[href]", { timeout: 15000 });
+    } catch (e) {
+      console.log("No links found within timeout — continuing with 0 links.");
+    }
+
+    console.log("Page title:", await page.title());
+
+    links = await page.$$eval("a", anchors =>
+      anchors.map(a => {
+        const linkText = a.innerText.trim();
+        let name = linkText;
+        const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
+        if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+          let container = a.closest("tr, li, div, td");
+          let attempts = 0;
+          while (container && attempts < 2) {
+            const possibleLinks = Array.from(container.querySelectorAll("a"));
+            for (const link of possibleLinks) {
+              const text = link.innerText.trim();
+              const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
+              const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
+              if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+                name = text;
+                break;
+              }
             }
+            if (name !== linkText) break;
+            container = container.parentElement;
+            attempts++;
           }
-          if (name !== linkText) break;
-          container = container.parentElement;
-          attempts++;
         }
-      }
-      return { url: a.href, name };
-    })
-  );
+        return { url: a.href, name };
+      })
+    );
+  } finally {
+    await browser.close().catch(err => console.log("Error closing browser:", err.message));
+  }
 
-  await browser.close();
   return links;
 }
 
