@@ -17,6 +17,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
+RUN npx camoufox-js fetch
+
 COPY . .
 
 CMD ["node", "crawler/crawler.js"]
