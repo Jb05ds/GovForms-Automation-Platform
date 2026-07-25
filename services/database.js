@@ -55,6 +55,7 @@ async function getSources() {
     .from("sources")
     .select("*")
     .eq("active", true)
+    .eq("id", "8")
     
   if (error) {
     console.error("Error fetching sources:", error.message);

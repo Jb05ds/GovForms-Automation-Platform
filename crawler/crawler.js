@@ -7,6 +7,7 @@ const puppeteer = require("puppeteer-extra");
 const cheerio = require("cheerio");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 puppeteer.use(StealthPlugin());
+const { Camoufox } = require("camoufox-js");
 const generateHash = require("../services/hasher");
 const path = require("path");
 const {saveHash, getSources} = require("../services/database");
@@ -36,8 +37,11 @@ async function crawlAgency(agency) {
     }
     links = extractLinksFromHTML(html, agency.url);
   } else if (agency.crawl_status === "puppeteer_only") {
-    console.log(`Using Puppeteer with manual CF solve...`);
+    console.log(`Using Puppeteer with manual CF solve...` );
     links = await extractLinksWithPuppeteer(agency, true);
+  } else if (agency.crawl_status === "playwright") {
+    console.log("Using playwright + Camoufox...")
+    links = await extractLinksWithCamoufox(agency, false)
   } else {
     links = await extractLinksWithPuppeteer(agency);
   }
@@ -148,7 +152,7 @@ async function checkForms() {
     try {
       await crawlAgency(agency);
     } catch (error) {
-      console.log(`error crawling ${agency.name}:`, error.message);
+      console.error(error);
     }
   }
 
@@ -311,6 +315,82 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
   }
 
   return links;
+}
+
+async function extractLinksWithCamoufox(agency, manual = false) {
+  const browser = await Camoufox({
+    headless: process.platform === "win32" ? false : true,
+  });
+
+  let links = [];
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewportSize({ width: 1366, height: 768 });
+    page.on("requestfailed", request => {
+      console.log("FAILED:", request.url(), request.failure()?.errorText);
+    });
+
+    await safeGotoPlaywright(page, agency.url);
+    await waitForCloudflare(page, manual);
+    await randomDelay();
+
+    try {
+      await page.waitForSelector('.accordion-body', { timeout: 5000 });
+    } catch (e) {
+      console.log('No accordion found, continuing...');
+    }
+
+    try {
+      await page.waitForSelector("a[href]", { timeout: 15000 });
+    } catch (e) {
+      console.log("No links found within timeout — continuing with 0 links.");
+    }
+
+    console.log("Page title:", await page.title());
+
+    links = await page.$$eval("a", anchors =>
+      anchors.map(a => {
+        const linkText = a.innerText.trim();
+        let name = linkText;
+        const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
+        if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+          let container = a.closest("tr, li, div, td");
+          let attempts = 0;
+          while (container && attempts < 2) {
+            const possibleLinks = Array.from(container.querySelectorAll("a"));
+            for (const link of possibleLinks) {
+              const text = link.innerText.trim();
+              const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
+              const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
+              if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+                name = text;
+                break;
+              }
+            }
+            if (name !== linkText) break;
+            container = container.parentElement;
+            attempts++;
+          }
+        }
+        return { url: a.href, name };
+      })
+    );
+  } finally {
+    await browser.close().catch(err => console.log("Error closing browser:", err.message));
+  }
+
+  return links;
+}
+
+async function safeGotoPlaywright(page, url) {
+  try {
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 }); 
+  } catch (err) {
+    console.log("Navigation failed, trying HTTP...");
+    const httpUrl = url.replace("https://", "http://");
+    await page.goto(httpUrl, { waitUntil: "networkidle", timeout: 30000 });
+  }
 }
 
 async function fetchWithScraperAPI(url, retries = 3) {
