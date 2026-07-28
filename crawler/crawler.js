@@ -27,6 +27,8 @@ async function crawlAgency(agency) {
   console.log(`\n>>> Crawling ${agency.name}...`);
 
   let links = [];
+  let camoufoxBrowser = null;
+  let camoufoxContext = null;
 
   if (agency.crawl_status === "cloudflare") {
     console.log(`Using ScraperAPI for CF-protected site...`);
@@ -41,7 +43,11 @@ async function crawlAgency(agency) {
     links = await extractLinksWithPuppeteer(agency, true);
   } else if (agency.crawl_status === "playwright") {
     console.log("Using playwright + Camoufox...")
-    links = await extractLinksWithCamoufox(agency, false)
+    const result = await extractLinksWithCamoufox(agency, false);
+    links = result.links;
+    camoufoxBrowser = result.browser;
+    camoufoxContext = result.context;
+    
   } else {
     links = await extractLinksWithPuppeteer(agency);
   }
@@ -105,6 +111,7 @@ async function crawlAgency(agency) {
 
   console.log(`Found ${forms.length} PDF forms for ${agency.name}`);
 
+try {
   for (let form of forms) {
   console.log(`Downloading: ${form.name}`);
 
@@ -113,6 +120,8 @@ async function crawlAgency(agency) {
   try {
     if (agency.crawl_status === "cloudflare") {
       await downloadFileWithScraperAPI(form.url, fileName);
+    } else if (agency.crawl_status === "playwright" && camoufoxContext) {
+      await downloadFileWithContext(camoufoxContext, form.url, fileName);
     } else {
       await downloadFile(form.url, fileName);
     }
@@ -137,6 +146,12 @@ async function crawlAgency(agency) {
     }
 
   }
+
+} finally {
+  if (camoufoxBrowser) {
+    await camoufoxBrowser.close().catch(err => console.log("Error closing camoufox browser", err.message));
+  }
+}
 
   console.log(`>>> Done with ${agency.name}`);
   return { formsFound: forms.length };
@@ -323,9 +338,11 @@ async function extractLinksWithCamoufox(agency, manual = false) {
   });
 
   let links = [];
+  let context;
 
   try {
     const page = await browser.newPage();
+    context = page.context();
     await page.setViewportSize({ width: 1366, height: 768 });
     page.on("requestfailed", request => {
       console.log("FAILED:", request.url(), request.failure()?.errorText);
@@ -376,11 +393,12 @@ async function extractLinksWithCamoufox(agency, manual = false) {
         return { url: a.href, name };
       })
     );
-  } finally {
-    await browser.close().catch(err => console.log("Error closing browser:", err.message));
+  } catch (err) {
+    await browser.close().catch(() => {});
+    throw err;
   }
 
-  return links;
+  return { links, browser, context };
 }
 
 async function safeGotoPlaywright(page, url) {
@@ -438,6 +456,17 @@ async function downloadFileWithScraperAPI(url, fileName) {
   }
 
   const buffer = await response.buffer();
+  const filePath = path.join(__dirname, "../downloads", fileName);
+  fs.writeFileSync(filePath, buffer);
+  console.log(`[DOWNLOADED] ${fileName}`);
+}
+
+async function downloadFileWithContext(context, url, fileName) {
+  const response = await context.request.get(url);
+  if (!response.ok()) {
+    throw new Error(`Request failed with status code ${response.status()}`);
+  }
+  const buffer = await response.body();
   const filePath = path.join(__dirname, "../downloads", fileName);
   fs.writeFileSync(filePath, buffer);
   console.log(`[DOWNLOADED] ${fileName}`);

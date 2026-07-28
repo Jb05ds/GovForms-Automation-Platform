@@ -1,8 +1,9 @@
-FROM node:20-slim
 
+FROM node:22-slim
 
 RUN apt-get update && apt-get install -y \
     wget gnupg ca-certificates fonts-liberation \
+    python3 build-essential \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libc6 libcairo2 libcups2 \
     libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libgcc1 libglib2.0-0 \
     libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 \
@@ -11,15 +12,15 @@ RUN apt-get update && apt-get install -y \
     libxss1 libxtst6 lsb-release xdg-utils \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
-
+ 
 WORKDIR /app
-
+ 
 COPY package*.json ./
 RUN npm install
 
 ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
 RUN npx camoufox-js fetch
-
+ 
 COPY . .
-
+ 
 CMD ["node", "crawler/crawler.js"]
