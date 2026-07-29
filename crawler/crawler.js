@@ -220,6 +220,21 @@ function getFileName(form) {
   if (googleDriveMatch) {
     return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${googleDriveMatch[1]}.pdf`;
   }
+
+  try {
+    const parsed = new URL(form.url);
+    const fileParam = parsed.searchParams.get("file");
+    if (fileParam) {
+      return decodeURIComponent(fileParam.split("/").pop());
+    }
+    const pathSegment = decodeURIComponent(parsed.pathname.split("/").pop());
+    if (pathSegment && /\.(pdf|docx?|xlsx?|pptx?)$/i.test(pathSegment)) {
+      return pathSegment;
+    }
+  } catch {
+  
+  }
+
   return decodeURIComponent(form.url.split("/").pop());
 }
 
@@ -341,8 +356,8 @@ async function extractLinksWithCamoufox(agency, manual = false) {
   let context;
 
   try {
-    const page = await browser.newPage();
-    context = page.context();
+    context = await browser.newContext({ acceptDownloads: true });
+    const page = await context.newPage();
     await page.setViewportSize({ width: 1366, height: 768 });
     page.on("requestfailed", request => {
       console.log("FAILED:", request.url(), request.failure()?.errorText);
@@ -403,11 +418,11 @@ async function extractLinksWithCamoufox(agency, manual = false) {
 
 async function safeGotoPlaywright(page, url) {
   try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 }); 
+    await page.goto(url, { waitUntil: "networkidle", timeout: 120000 }); 
   } catch (err) {
     console.log("Navigation failed, trying HTTP...");
     const httpUrl = url.replace("https://", "http://");
-    await page.goto(httpUrl, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(httpUrl, { waitUntil: "networkidle", timeout: 120000 });
   }
 }
 
@@ -462,14 +477,37 @@ async function downloadFileWithScraperAPI(url, fileName) {
 }
 
 async function downloadFileWithContext(context, url, fileName) {
-  const response = await context.request.get(url);
-  if (!response.ok()) {
-    throw new Error(`Request failed with status code ${response.status()}`);
-  }
-  const buffer = await response.body();
+  const page = await context.newPage();
   const filePath = path.join(__dirname, "../downloads", fileName);
-  fs.writeFileSync(filePath, buffer);
-  console.log(`[DOWNLOADED] ${fileName}`);
+  const downloadPromise = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
+
+  try {
+    let response;
+    try {
+      response = await page.goto(url, { timeout: 30000 });
+    } catch (err) {
+      if (!/download is starting/i.test(err.message)) {
+        throw err;
+      }
+      response = null;
+    }
+
+    if (response && response.ok()) {
+      const buffer = await response.body();
+      fs.writeFileSync(filePath, buffer);
+      console.log(`[DOWNLOADED] ${fileName}`);
+      return;
+    }
+
+    const download = await downloadPromise;
+    if (!download) {
+      throw new Error("Expected a file download but none arrived within timeout");
+    }
+    await download.saveAs(filePath);
+    console.log(`[DOWNLOADED] ${fileName}`);
+  } finally {
+    await page.close().catch(() => {});
+  }
 }
 
 async function safeGoto(page, url) {
@@ -514,7 +552,7 @@ async function waitForCloudflare(page, manual = false) {
     try {
       await page.waitForFunction(
         () => !document.title.includes("Just a moment"),
-        { timeout: 30000 }
+        { timeout: 120000 }
       );
       console.log("✅ Cleared automatically. Page title:", await page.title());
       await randomDelay(2000, 4000);
