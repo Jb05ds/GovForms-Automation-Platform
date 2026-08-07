@@ -9,7 +9,7 @@ const supabase = createClient (
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-async function saveHash(agency, formName, fileName, hash, sourceUrl){
+async function saveHash(agency, formName, fileName, hash, sourceUrl, textExtract){
     const {data: existing} = await supabase
         .from("form_hashes")
         .select("hash")
@@ -36,7 +36,10 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl){
             hash,
             source_url: sourceUrl,
             last_checked: new Date().toISOString(),
-            is_changed: isChanged
+            is_changed: isChanged,
+            first_page_text: textExtract,
+            extraction_status: textExtract,
+            file_type: textExtract
         }, {
             onConflict: "source_url"
         });
@@ -55,7 +58,7 @@ async function getSources() {
     .from("sources")
     .select("*")
     .eq("active", true)
-    .eq("id", "90")
+    .eq("id", "21")
     
   if (error) {
     console.error("Error fetching sources:", error.message);

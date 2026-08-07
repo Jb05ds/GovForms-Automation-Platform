@@ -14,6 +14,7 @@ const {saveHash, getSources} = require("../services/database");
 const cron = require("node-cron");
 const fs = require("fs");
 const downloadFile = require("../services/downloader");
+const extractText = require("../services/textExtractor");
 const fetch = require("node-fetch");
 
 const downloadsDir = path.join(__dirname, "../downloads");
@@ -140,7 +141,8 @@ try {
     
     try {
       const hash = generateHash(filePath);
-      await saveHash(agency.name, form.name, fileName, hash, form.url);
+      const textExtract = extractText(filePath);
+      await saveHash(agency.name, form.name, fileName, hash, form.url, textExtract.text, textExtract.status, textExtract.type);
     } catch (err) {
       console.error(`Failed to save hash for ${form.name}:`, err.message);
     }
