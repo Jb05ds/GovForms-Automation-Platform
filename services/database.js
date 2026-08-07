@@ -37,9 +37,9 @@ async function saveHash(agency, formName, fileName, hash, sourceUrl, textExtract
             source_url: sourceUrl,
             last_checked: new Date().toISOString(),
             is_changed: isChanged,
-            first_page_text: textExtract,
-            extraction_status: textExtract,
-            file_type: textExtract
+            first_page_text: textExtract.text,
+            extraction_status: textExtract.status,
+            file_type: textExtract.type
         }, {
             onConflict: "source_url"
         });

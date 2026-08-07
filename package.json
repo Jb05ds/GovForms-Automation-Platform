@@ -25,11 +25,13 @@
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
     "path": "^0.12.7",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "playwright": "^1.55.0",
     "playwright-core": "^1.53.1",
     "puppeteer": "^24.39.1",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "word-extractor": "^1.0.4",
+    "xlsx": "^0.18.5"
   }
 }

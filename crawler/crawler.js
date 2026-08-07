@@ -141,8 +141,8 @@ try {
     
     try {
       const hash = generateHash(filePath);
-      const textExtract = extractText(filePath);
-      await saveHash(agency.name, form.name, fileName, hash, form.url, textExtract.text, textExtract.status, textExtract.type);
+      const textExtract = await extractText(filePath);
+      await saveHash(agency.name, form.name, fileName, hash, form.url, textExtract);
     } catch (err) {
       console.error(`Failed to save hash for ${form.name}:`, err.message);
     }
