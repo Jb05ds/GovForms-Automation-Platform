@@ -13,7 +13,7 @@ const path = require("path");
 const {saveHash, getSources} = require("../services/database");
 const cron = require("node-cron");
 const fs = require("fs");
-const downloadFile = require("../services/downloader");
+const { downloadFile, validateDownloadFile} = require("../services/downloader");
 const extractText = require("../services/textExtractor");
 const fetch = require("node-fetch");
 
@@ -328,8 +328,9 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
             for (const link of possibleLinks) {
               const text = link.innerText.trim();
               const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-              const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
-              if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+              const isGeneric = ["download", "details", "click here","preview", "view", "open", ""].includes(text.toLowerCase());
+              const looksLikeDate = /^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(text) || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(text);
+              if (text && !isFilename && !isGeneric && !looksLikeDate && text.length > 5 && text.length < 200) {
                 name = text;
                 break;
               }
@@ -473,6 +474,15 @@ async function downloadFileWithScraperAPI(url, fileName) {
   }
 
   const buffer = await response.buffer();
+
+  if (path.extname(fileName).toLowerCase() === ".pdf") {
+  const signature = buffer.slice(0, 5).toString("ascii");
+
+  if (signature !== "%PDF-") {
+    throw new Error("Downloaded file is not a valid PDF");
+   } 
+  }
+  
   const filePath = path.join(__dirname, "../downloads", fileName);
   fs.writeFileSync(filePath, buffer);
   console.log(`[DOWNLOADED] ${fileName}`);
@@ -481,32 +491,49 @@ async function downloadFileWithScraperAPI(url, fileName) {
 async function downloadFileWithContext(context, url, fileName) {
   const page = await context.newPage();
   const filePath = path.join(__dirname, "../downloads", fileName);
-  const downloadPromise = page.waitForEvent('download', { timeout: 15000 }).catch(() => null);
+
+  const downloadPromise = page
+    .waitForEvent("download", { timeout: 15000 })
+    .catch(() => null);
 
   try {
     let response;
+
     try {
       response = await page.goto(url, { timeout: 30000 });
     } catch (err) {
       if (!/download is starting/i.test(err.message)) {
         throw err;
       }
+
       response = null;
     }
 
     if (response && response.ok()) {
       const buffer = await response.body();
+
       fs.writeFileSync(filePath, buffer);
+
+      validateDownloadFile(filePath, fileName);
+
       console.log(`[DOWNLOADED] ${fileName}`);
       return;
     }
 
     const download = await downloadPromise;
+
     if (!download) {
-      throw new Error("Expected a file download but none arrived within timeout");
+      throw new Error(
+        "Expected a file download but none arrived within timeout"
+      );
     }
+
     await download.saveAs(filePath);
+
+    validateDownloadFile(filePath, fileName);
+
     console.log(`[DOWNLOADED] ${fileName}`);
+
   } finally {
     await page.close().catch(() => {});
   }
@@ -563,5 +590,6 @@ async function waitForCloudflare(page, manual = false) {
     }
   }
 }
+
 
 module.exports = { crawlAgency };
