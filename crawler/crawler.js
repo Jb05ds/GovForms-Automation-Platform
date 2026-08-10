@@ -115,21 +115,21 @@ async function crawlAgency(agency) {
 try {
   for (let form of forms) {
   console.log(`Downloading: ${form.name}`);
-
   const fileName = getFileName(form);
 
   try {
-    if (agency.crawl_status === "cloudflare") {
-      await downloadFileWithScraperAPI(form.url, fileName);
-    } else if (agency.crawl_status === "playwright" && camoufoxContext) {
-      await downloadFileWithContext(camoufoxContext, form.url, fileName);
-    } else {
-      await downloadFile(form.url, fileName);
+    try {
+      if (agency.crawl_status === "cloudflare") {
+        await downloadFileWithScraperAPI(form.url, fileName);
+      } else if (agency.crawl_status === "playwright" && camoufoxContext) {
+        await downloadFileWithContext(camoufoxContext, form.url, fileName);
+      } else {
+        await downloadFile(form.url, fileName);
+      }
+    } catch (err) {
+      console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
+      continue;
     }
-  } catch (err) {
-    console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
-    continue;
-  }
 
     const filePath = path.join(__dirname, "../downloads", fileName);
 
@@ -138,7 +138,6 @@ try {
       continue;
     }
 
-    
     try {
       const hash = generateHash(filePath);
       const textExtract = await extractText(filePath);
@@ -146,8 +145,10 @@ try {
     } catch (err) {
       console.error(`Failed to save hash for ${form.name}:`, err.message);
     }
-
+  } finally {
+    await randomDelay(500, 1500);
   }
+}
 
 } finally {
   if (camoufoxBrowser) {
