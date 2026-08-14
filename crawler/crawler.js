@@ -121,10 +121,15 @@ try {
     try {
       if (agency.crawl_status === "cloudflare") {
         await downloadFileWithScraperAPI(form.url, fileName);
-      } else if (agency.crawl_status === "playwright" && camoufoxContext) {
-        await downloadFileWithContext(camoufoxContext, form.url, fileName);
       } else {
-        await downloadFile(form.url, fileName);
+        if (!camoufoxContext) {
+          console.log(`No browser context yet for ${agency.name}, launching one for downloads...`);
+          const launched = await launchDownloadBrowser();
+          camoufoxBrowser = launched.browser;
+          camoufoxContext = launched.context;
+          await warmUpForCloudflare(camoufoxContext, agency.url);
+        }
+        await downloadFileWithContext(camoufoxContext, form.url, fileName);
       }
     } catch (err) {
       console.log(`[DOWNLOAD FAILED] ${form.name}: ${err.message}`);
@@ -535,6 +540,26 @@ async function downloadFileWithContext(context, url, fileName) {
 
     console.log(`[DOWNLOADED] ${fileName}`);
 
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function launchDownloadBrowser() {
+  const browser = await Camoufox({
+    headless: process.platform === "win32" ? false : true,
+  });
+  const context = await browser.newContext({ acceptDownloads: true });
+  return { browser, context };
+}
+
+async function warmUpForCloudflare(context, url) {
+  const page = await context.newPage();
+  try {
+    await safeGotoPlaywright(page, url);
+    await waitForCloudflare(page, false);
+  } catch (err) {
+    console.log(`[WARMUP FAILED] ${url}: ${err.message}`);
   } finally {
     await page.close().catch(() => {});
   }
