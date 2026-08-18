@@ -1,0 +1,15 @@
+const { importAgencyCsv } = require("./csvImporter");
+const { matchAgency } = require("./matcher");
+const path = require("path")
+
+async function run() {
+
+  const agencyName = "Insurance Commission (IC)";
+  const csvPath = path.resolve(__dirname, "../csv/tbl_forms_2018_with_agencyName.csv");
+  const descriptionColumn = "form_desc";
+
+  await importAgencyCsv(agencyName, csvPath, descriptionColumn);
+  await matchAgency(agencyName);
+}
+
+run();  
