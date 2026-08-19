@@ -9,6 +9,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+async function fetchAllRows(buildQuery) {
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let page = 0;
+  while (true) {
+    const { data, error } = await buildQuery().range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) throw error;
+    allRows = allRows.concat(data);
+    if (!data || data.length < PAGE_SIZE) break;
+    page++;
+  }
+  return allRows;
+}
+
 function buildFuseIndex(downloadedForms) {
   return new Fuse(downloadedForms, {
     keys: [
@@ -24,26 +38,17 @@ function buildFuseIndex(downloadedForms) {
 async function matchAgency(agencyName) {
   console.log(`\n>>> Matching forms for ${agencyName}...`);
 
-  const { data: csvForms, error: csvError } = await supabase
-    .from("agency_csv_forms")
-    .select("*")
-    .eq("agency", agencyName);
+  const csvForms = await fetchAllRows(() =>
+    supabase.from("agency_csv_forms").select("*").eq("agency", agencyName)
+  );
 
-  if (csvError) {
-    console.error("Failed to load CSV forms:", csvError.message);
-    return;
-  }
-
-  const { data: downloadedForms, error: formsError } = await supabase
-    .from("form_hashes")
-    .select("*")
-    .eq("agency", agencyName)
-    .in("extraction_status", ["success", "empty"]);
-
-  if (formsError) {
-    console.error("Failed to load downloaded forms:", formsError.message);
-    return;
-  }
+  const downloadedForms = await fetchAllRows(() =>
+    supabase
+      .from("form_hashes")
+      .select("*")
+      .eq("agency", agencyName)
+      .in("extraction_status", ["success", "empty"])
+  );
 
   console.log(`${csvForms.length} CSV rows vs ${downloadedForms.length} downloaded forms`);
 
