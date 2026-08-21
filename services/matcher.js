@@ -9,6 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+
 async function fetchAllRows(buildQuery) {
   const PAGE_SIZE = 1000;
   let allRows = [];
@@ -23,11 +24,27 @@ async function fetchAllRows(buildQuery) {
   return allRows;
 }
 
+function normalizeText(text) {
+  if (!text) return "";
+  return text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"') 
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ") 
+    .trim();
+}
+
 function buildFuseIndex(downloadedForms) {
-  return new Fuse(downloadedForms, {
+  const prepared = downloadedForms.map(f => ({
+    ...f,
+    _normalized_name: normalizeText(f.form_name),
+    _normalized_text: normalizeText(f.first_page_text),
+  }));
+
+  return new Fuse(prepared, {
     keys: [
-      { name: "form_name", weight: 0.7 },
-      { name: "first_page_text", weight: 0.3 },
+      { name: "_normalized_name", weight: 0.7 },
+      { name: "_normalized_text", weight: 0.3 },
     ],
     includeScore: true,
     threshold: 0.6,
@@ -61,7 +78,7 @@ async function matchAgency(agencyName) {
   const results = [];
 
   for (const csvRow of csvForms) {
-    const matches = fuse.search(csvRow.description);
+    const matches = fuse.search(normalizeText(csvRow.description));
     const best = matches[0];
 
     let status = "unmatched";
@@ -71,7 +88,7 @@ async function matchAgency(agencyName) {
     if (best) {
       confidence = Math.round((1 - best.score) * 100);
       matchedForm = best.item;
-      status = confidence >= 95 ? "auto_matched" : confidence >= 75 ? "needs_review" : "unmatched";
+      status = confidence >= 95 ? "auto_matched" : confidence >= 35 ? "needs_review" : "unmatched";
     }
 
     results.push({
@@ -86,13 +103,15 @@ async function matchAgency(agencyName) {
     });
   }
 
-  const { error: upsertError } = await supabase
-    .from("form_matches")
-    .upsert(results, { onConflict: "csv_form_id" });
-
-  if (upsertError) {
-    console.error("Failed to save matches:", upsertError.message);
-    return;
+  const UPSERT_BATCH_SIZE = 500;
+  for (let i = 0; i < results.length; i += UPSERT_BATCH_SIZE) {
+    const batch = results.slice(i, i + UPSERT_BATCH_SIZE);
+    const { error: upsertError } = await supabase
+      .from("form_matches")
+      .upsert(batch, { onConflict: "csv_form_id" });
+    if (upsertError) {
+      console.error(`Failed to save batch ${i / UPSERT_BATCH_SIZE + 1}:`, upsertError.message);
+    }
   }
 
   const autoCount = results.filter(r => r.status === "auto_matched").length;
