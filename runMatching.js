@@ -3,7 +3,7 @@ const path = require("path")
 
 async function run() {
 
-  const agencyName = "Insurance Commission (IC)";
+  const agencyName = "Forest Management Bureau (FMB)";
   const csvPath = path.resolve(__dirname, "../csv/tbl_forms_2018_with_agencyName.csv");
   const descriptionColumn = "form_desc";
 

@@ -118,7 +118,7 @@ async function matchAgency(agencyName) {
   const reviewCount = results.filter(r => r.status === "needs_review").length;
   const unmatchedCount = results.filter(r => r.status === "unmatched").length;
 
-  console.log(`✅ ${autoCount} auto-matched | 👀 ${reviewCount} need review | ❌ ${unmatchedCount} unmatched`);
+  console.log(`✅ ${autoCount} auto-matched |  ${reviewCount} need review | ❌ ${unmatchedCount} unmatched`);
 }
 
 module.exports = { matchAgency };

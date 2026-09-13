@@ -1,7 +1,6 @@
 const path = require("path");
 const Fuse = require("fuse.js");
 const { createClient } = require("@supabase/supabase-js");
-const { verifyWithAI } = require("./services/AiVerifier");
 
 require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 
@@ -73,6 +72,8 @@ async function runAiVerification(agencyName) {
         update.form_hash_id = matched.id;
         update.matched_form_name = matched.form_name;
         update.matched_file_name = matched.file_name;
+      } else {
+        update.status = "unmatched";
       }
 
       const { error: updateError } = await supabase

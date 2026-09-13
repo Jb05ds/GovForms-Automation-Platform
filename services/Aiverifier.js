@@ -11,6 +11,8 @@ async function verifyWithAI(csvDescription, candidates) {
 
   const prompt = `You are verifying whether an official government form matches any of several candidate forms found by a web crawler. Titles may be worded differently but still refer to the same form.
 
+Be conservative: forms sharing a general category or topic (e.g., both are "claims" or both are "applications") are NOT necessarily the same form. A "Funeral Claim" and a "Death Claim" are different claim types even though both mention "claim". Only match if the specific type of form is the same, not just the general subject area. If you are not confident they are the exact same form, say none of them match.
+
 Official form: "${csvDescription}"
 
 Candidates:
@@ -55,4 +57,4 @@ match_index is the 1-based number of the candidate that is clearly the same form
   };
 }
 
-module.exports = { verifyWithAI };
+module.exports = { verifyWithAI, verifyModelAvailable };
