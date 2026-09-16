@@ -1,13 +1,22 @@
 const { matchAgency } = require("./services/matcher");
-const path = require("path")
+const { createClient } = require("@supabase/supabase-js");
+require("dotenv").config();
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 async function run() {
+  const { data } = await supabase.from("agency_csv_forms").select("agency");
+  const agencies = [...new Set(data.map(r => r.agency))];
 
-  const agencyName = "Forest Management Bureau (FMB)";
-  const csvPath = path.resolve(__dirname, "../csv/tbl_forms_2018_with_agencyName.csv");
-  const descriptionColumn = "form_desc";
+  console.log(`Matching ${agencies.length} agencies...\n`);
 
-  await matchAgency(agencyName);
+  for (const agency of agencies) {
+    try {
+      await matchAgency(agency);
+    } catch (err) {
+      console.error(`Failed on ${agency}:`, err.message);
+    }
+  }
 }
 
-run();   
+run();
