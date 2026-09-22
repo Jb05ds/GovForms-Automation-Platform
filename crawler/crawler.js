@@ -323,29 +323,47 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
 
     links = await page.$$eval("a", anchors =>
       anchors.map(a => {
+
         const linkText = a.innerText.trim();
         let name = linkText;
         const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+        const isGenericLabel = (t) =>
+          ["download", "details", "click here", "preview", "view", "open", ""].includes(t.toLowerCase());
+
+        if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
           let container = a.closest("tr, li, div, td");
           let attempts = 0;
-          while (container && attempts < 2) {
+
+          while (container && attempts < 3) {
             const possibleLinks = Array.from(container.querySelectorAll("a"));
             for (const link of possibleLinks) {
               const text = link.innerText.trim();
               const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-              const isGeneric = ["download", "details", "click here","preview", "view", "open", ""].includes(text.toLowerCase());
-              const looksLikeDate = /^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(text) || /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(text);
-              if (text && !isFilename && !isGeneric && !looksLikeDate && text.length > 5 && text.length < 200) {
+              if (text && !isFilename && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
                 name = text;
                 break;
               }
             }
             if (name !== linkText) break;
+
+            if (container.tagName === "TR") {
+              const cells = Array.from(container.querySelectorAll("td, th"));
+              for (const cell of cells) {
+                if (cell.contains(a)) continue;
+                const text = cell.innerText.trim();
+                if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
+                  name = text;
+                  break;
+                }
+              }
+              if (name !== linkText) break;
+            }
+
             container = container.parentElement;
             attempts++;
           }
         }
+
         return { url: a.href, name };
       })
     );
@@ -392,28 +410,46 @@ async function extractLinksWithCamoufox(agency, manual = false) {
 
     links = await page.$$eval("a", anchors =>
       anchors.map(a => {
+
         const linkText = a.innerText.trim();
         let name = linkText;
         const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        if (!linkText || looksLikeFileName || linkText.toLowerCase() === "click here" || linkText.toLowerCase() === "download") {
+        const isGenericLabel = (t) =>
+          ["download", "details", "click here", "preview", "view", "open", ""].includes(t.toLowerCase());
+
+        if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
           let container = a.closest("tr, li, div, td");
           let attempts = 0;
-          while (container && attempts < 2) {
+
+          while (container && attempts < 3) {
             const possibleLinks = Array.from(container.querySelectorAll("a"));
             for (const link of possibleLinks) {
               const text = link.innerText.trim();
               const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-              const isGeneric = ["download", "details", "click here", ""].includes(text.toLowerCase());
-              if (text && !isFilename && !isGeneric && text.length > 5 && text.length < 200) {
+              if (text && !isFilename && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
                 name = text;
                 break;
               }
             }
             if (name !== linkText) break;
+            if (container.tagName === "TR") {
+              const cells = Array.from(container.querySelectorAll("td, th"));
+              for (const cell of cells) {
+                if (cell.contains(a)) continue; // skip our own cell
+                const text = cell.innerText.trim();
+                if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
+                  name = text;
+                  break;
+                }
+              }
+              if (name !== linkText) break;
+            }
+
             container = container.parentElement;
             attempts++;
           }
         }
+
         return { url: a.href, name };
       })
     );
