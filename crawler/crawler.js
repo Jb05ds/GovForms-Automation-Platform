@@ -327,8 +327,16 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
         const linkText = a.innerText.trim();
         let name = linkText;
         const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        const isGenericLabel = (t) =>
-          ["download", "details", "click here", "preview", "view", "open", ""].includes(t.toLowerCase());
+        const isGenericLabel = (t) => {
+          const lower = t.toLowerCase();
+          if (["download", "details", "click here", "preview", "view", "open", ""].includes(lower)) {
+            return true;
+          }
+
+          if (/^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(t)) return true;
+          if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(t)) return true;
+          return false; 
+        }
 
         if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
           let container = a.closest("tr, li, div, td");
@@ -361,6 +369,20 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
 
             container = container.parentElement;
             attempts++;
+          }
+        }
+
+        if (name === linkText || isGenericLabel(name)) {
+          let sibling = a.closest("div, p, li")?.previousElementSibling;
+          let siblingAttempts = 0;
+          while (sibling && siblingAttempts < 3) {
+            const text = sibling.innerText?.trim();
+            if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
+              name = text;
+              break;
+            }
+            sibling = sibling.previousElementSibling;
+            siblingAttempts++;
           }
         }
 
@@ -414,8 +436,16 @@ async function extractLinksWithCamoufox(agency, manual = false) {
         const linkText = a.innerText.trim();
         let name = linkText;
         const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        const isGenericLabel = (t) =>
-          ["download", "details", "click here", "preview", "view", "open", ""].includes(t.toLowerCase());
+        const isGenericLabel = (t) => {
+        const lower = t.toLowerCase();
+        if (["download", "details", "click here", "preview", "view", "open", ""].includes(lower)) {
+          return true;
+        }
+
+        if (/^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(t)) return true;
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(t)) return true;
+        return false;
+      };
 
         if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
           let container = a.closest("tr, li, div, td");
