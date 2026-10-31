@@ -16,6 +16,7 @@ const fs = require("fs");
 const { downloadFile, validateDownloadFile} = require("../services/downloader");
 const extractText = require("../services/textExtractor");
 const fetch = require("node-fetch");
+const { extractAnchors } = require("../services/linkExtractor");
 
 const downloadsDir = path.join(__dirname, "../downloads");
 if (!fs.existsSync(downloadsDir)) {
@@ -223,10 +224,15 @@ function getFileName(form) {
 
   if (googleDocMatch) {
     const [, id, ext] = googleDocMatch;
-    return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${id}.${ext}`;
+    const safeName = form.name.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 80);
+
+    return `${safeName}_${id}.${ext}`;
   }
+
   if (googleDriveMatch) {
-    return `${form.name.replace(/[^a-zA-Z0-9]/g, "_")}_${googleDriveMatch[1]}.pdf`;
+    const safeName = form.name.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 80);
+
+    return `${safeName}_${googleDriveMatch[1]}.pdf`;
   }
 
   try {
@@ -321,74 +327,7 @@ async function extractLinksWithPuppeteer(agency, manual = false) {
 
     console.log("Page title:", await page.title());
 
-    links = await page.$$eval("a", anchors =>
-      anchors.map(a => {
-
-        const linkText = a.innerText.trim();
-        let name = linkText;
-        const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        const isGenericLabel = (t) => {
-          const lower = t.toLowerCase();
-          if (["download", "details", "click here", "preview", "view", "open", ""].includes(lower)) {
-            return true;
-          }
-
-          if (/^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(t)) return true;
-          if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(t)) return true;
-          return false; 
-        }
-
-        if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
-          let container = a.closest("tr, li, div, td");
-          let attempts = 0;
-
-          while (container && attempts < 3) {
-            const possibleLinks = Array.from(container.querySelectorAll("a"));
-            for (const link of possibleLinks) {
-              const text = link.innerText.trim();
-              const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-              if (text && !isFilename && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
-                name = text;
-                break;
-              }
-            }
-            if (name !== linkText) break;
-
-            if (container.tagName === "TR") {
-              const cells = Array.from(container.querySelectorAll("td, th"));
-              for (const cell of cells) {
-                if (cell.contains(a)) continue;
-                const text = cell.innerText.trim();
-                if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
-                  name = text;
-                  break;
-                }
-              }
-              if (name !== linkText) break;
-            }
-
-            container = container.parentElement;
-            attempts++;
-          }
-        }
-
-        if (name === linkText || isGenericLabel(name)) {
-          let sibling = a.closest("div, p, li")?.previousElementSibling;
-          let siblingAttempts = 0;
-          while (sibling && siblingAttempts < 3) {
-            const text = sibling.innerText?.trim();
-            if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
-              name = text;
-              break;
-            }
-            sibling = sibling.previousElementSibling;
-            siblingAttempts++;
-          }
-        }
-
-        return { url: a.href, name };
-      })
-    );
+     links = await extractAnchors(page);
   } finally {
     await browser.close().catch(err => console.log("Error closing browser:", err.message));
   }
@@ -430,59 +369,7 @@ async function extractLinksWithCamoufox(agency, manual = false) {
 
     console.log("Page title:", await page.title());
 
-    links = await page.$$eval("a", anchors =>
-      anchors.map(a => {
-
-        const linkText = a.innerText.trim();
-        let name = linkText;
-        const looksLikeFileName = /\.(pdf|docx?|doc?|pptx?|xlsx?)$/i.test(linkText);
-        const isGenericLabel = (t) => {
-        const lower = t.toLowerCase();
-        if (["download", "details", "click here", "preview", "view", "open", ""].includes(lower)) {
-          return true;
-        }
-
-        if (/^\w+day,\s+\w+\s+\d{1,2},\s+\d{4}/.test(t)) return true;
-        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(t)) return true;
-        return false;
-      };
-
-        if (!linkText || looksLikeFileName || isGenericLabel(linkText)) {
-          let container = a.closest("tr, li, div, td");
-          let attempts = 0;
-
-          while (container && attempts < 3) {
-            const possibleLinks = Array.from(container.querySelectorAll("a"));
-            for (const link of possibleLinks) {
-              const text = link.innerText.trim();
-              const isFilename = /\.(pdf|docx?|doc?|xlsx?|pptx?)/i.test(text);
-              if (text && !isFilename && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
-                name = text;
-                break;
-              }
-            }
-            if (name !== linkText) break;
-            if (container.tagName === "TR") {
-              const cells = Array.from(container.querySelectorAll("td, th"));
-              for (const cell of cells) {
-                if (cell.contains(a)) continue; // skip our own cell
-                const text = cell.innerText.trim();
-                if (text && !isGenericLabel(text) && text.length > 5 && text.length < 200) {
-                  name = text;
-                  break;
-                }
-              }
-              if (name !== linkText) break;
-            }
-
-            container = container.parentElement;
-            attempts++;
-          }
-        }
-
-        return { url: a.href, name };
-      })
-    );
+        links = await extractAnchors(page);
   } catch (err) {
     await browser.close().catch(() => {});
     throw err;
