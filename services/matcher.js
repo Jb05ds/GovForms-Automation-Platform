@@ -118,7 +118,7 @@ async function matchAgency(agencyName) {
       results.push({
         agency: agencyName,
         csv_form_id: csvRow.id,
-        csv_description: csvRow.description,
+        csv_description: (csvRow.description || "").trim(),
         form_hash_id: matchedForm?.id ?? null,
         matched_form_name: matchedForm?.form_name ?? null,
         matched_file_name: matchedForm?.file_name ?? null,
