@@ -160,7 +160,7 @@ module.exports = { runAiVerification };
 
 if (require.main === module) {
   const agencyName =
-    process.argv[2] || "Insurance Commission (IC)";
+    process.argv[2] || "National Tobacco Administration (NTA)";
 
   runAiVerification(agencyName);
 }
